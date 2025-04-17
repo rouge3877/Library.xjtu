@@ -1,32 +1,50 @@
+#!/usr/bin/env python3
 import sys
-import requests
 import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
+import requests
+
+# Constants
 BASE_URL = "http://202.117.24.3:8088"
 AREAS = ["xingqing2floor", "xingqing3floor", "xingqing4floor"]
 
-
-# 配置日志
+# Set up logging configuration
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='[%(levelname)s][%(asctime)s] %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+def fetch_api(endpoint: str, params: Dict) -> Optional[Dict]:
+    try:
+        response = requests.get(
+            BASE_URL + endpoint,
+            params=params,
+            timeout=5
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        logging.error(f"API request failed {endpoint}: {str(e)}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error: {str(e)}")
+        return None
+
 class LibraryDataManager:
 
-    def __init__(self, base_url: str, areas: List[str], cache_file: str = 'cache.json'):
+    def __init__(self, base_url: str, areas: List[str], cache_file_path: str = 'cache.json'):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.base_url = base_url
         self.areas = areas
-        self.cache_file = cache_file
-        
+        self.cache_file = cache_file_path
+
         self.area_space_map: Dict[str, List[str]] = {}
         self.space_seat_map: Dict[str, List[str]] = {}
-        
+
         self.load_cache()
 
     def load_cache(self) -> None:
@@ -45,7 +63,6 @@ class LibraryDataManager:
         self.refresh_data()
 
     def refresh_data(self) -> None:
-        """从服务器获取最新数据并更新缓存"""
         self.logger.info("Refreshing mapping data from server")
         self._fetch_areas_spaces()
         self._fetch_spaces_seats()
@@ -79,25 +96,12 @@ class LibraryDataManager:
             self.logger.error(f"Failed to save cache: {str(e)}")
 
     def _get_spaces(self, area: str) -> List[str]:
-        data = self._fetch_api("/qseatui", {"sp": area})
+        data = fetch_api("/qseatui", {"sp": area})
         return [k for k in (data or {}) if k not in ("", "spacecancel")]
 
     def _get_seats(self, space: str) -> List[str]:
-        data = self._fetch_api("/qseatuist", {"sp": space})
+        data = fetch_api("/qseatuist", {"sp": space})
         return [k for k in (data or {}) if k not in ("", "cancel")]
-
-    def _fetch_api(self, endpoint: str, params: Dict) -> Optional[Dict]:
-        try:
-            response = requests.get(
-                self.base_url + endpoint,
-                params=params,
-                timeout=5
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"API request failed {endpoint}: {str(e)}")
-            return None
 
     def get_area_for_space(self, space: str) -> Optional[str]:
         for area, spaces in self.area_space_map.items():
@@ -140,21 +144,7 @@ class SeatBookingSystem:
         if self.initialize() is False:
             self.logger.error("Failed to initialize SeatBookingSystem")
             sys.exit(1)
-            
 
-
-    def _fetch_api(self, endpoint: str, params: Dict) -> Optional[Dict]:
-        try:
-            response = requests.get(
-                self.base_url + endpoint,
-                params=params,
-                timeout=5
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            self.logger.error(f"API request failed {endpoint}: {str(e)}")
-            return None
 
     def initialize(self) -> bool:
         try:
@@ -165,12 +155,14 @@ class SeatBookingSystem:
                 return True
             self.logger.error("Unexpected landing page content")
             return False
+        except requests.RequestException as e:
+            self.logger.error("Initialization request failed: %s", str(e))
         except Exception as e:
             self.logger.error(f"Initialization failed: {str(e)}")
             return False
 
     def get_user_status(self, cardno: str) -> Tuple[Optional[int], Optional[str]]:
-        data = self._fetch_api("/quserinfo", {"cardno": cardno})
+        data = fetch_api("/quserinfo", {"cardno": cardno})
         if data:
             status = int(data.get('status'))
             message = data.get('message')
@@ -180,7 +172,7 @@ class SeatBookingSystem:
             return None, None
 
     def get_space_status(self, space: str) -> Optional[List[Dict[str, int]]]:
-        data = self._fetch_api("/qseatuist", {"sp": space})
+        data = fetch_api("/qseatuist", {"sp": space})
         if data:
             seat_list = []
             for key, value in data.items():
@@ -195,7 +187,7 @@ class SeatBookingSystem:
 
     def get_seat_status(self, seat_id: str, space: str) -> Tuple[Optional[int], Optional[str]]:
         SEAT_STATUS_INDEX = 4
-        data = self._fetch_api("/qseatuist", {"sp": space})
+        data = fetch_api("/qseatuist", {"sp": space})
         if data:
             seat_data = data.get(seat_id)
             if seat_data:
@@ -215,6 +207,19 @@ class SeatBookingSystem:
         # return 1: reservation success
         # return 2: already reserved
         # return -1: runtime error
+        """Reserve a seat for a user.
+
+        Args:
+            cardno:lib user card number
+            seat_id: Seat ID
+            space: Space name
+
+        Returns:
+            0: reservation failed
+            1: reservation success
+            2: already reserved
+           -1: runtime error
+        """
 
         # check if the cardno is already reserved the seat
         user_status, user_message = self.get_user_status(cardno)
@@ -248,10 +253,11 @@ class SeatBookingSystem:
             #     return 0
             self.logger.error(f"Unexpected booking response: {response.text}")
             return 0
-        except Exception as e:
+        except requests.RequestException as e:
             self.logger.error(f"Booking request failed: {str(e)}")
-            return -1
-        
+        except Exception as e:
+            self.logger.error(f"Booking unexpected failed: {str(e)}")
+        return -1
 
 
 def reserve_seat(cardno: str, seat_id: str) -> bool:
@@ -338,14 +344,16 @@ def list_space(area: str):
     spaces = data_manager.area_space_map[area]
     print(f"Spaces in {area}:")
     for space in spaces:
-        print(space)
+        print(" - " + space)
 
 def list_all_spaces():
-    data_manager = LibraryDataManager(BASE_URL, AREAS)
-    all_spaces = sum(data_manager.area_space_map.values(), [])
-    print("All spaces:")
-    for space in all_spaces:
-        print(space)
+    # data_manager = LibraryDataManager(BASE_URL, AREAS)
+    # all_spaces = sum(data_manager.area_space_map.values(), [])
+    # print("All spaces:")
+    # for space in all_spaces:
+    #     print(" - " + space)
+    for area in AREAS:
+        list_space(area)
 
 def refresh_cache():
     data_manager = LibraryDataManager(BASE_URL, AREAS)
@@ -357,41 +365,49 @@ if __name__ == "__main__":
 
     import argparse
     parser = argparse.ArgumentParser(description="Library Seat Booking System")
-    
-    # 添加子命令解析器
+    parser.add_argument('--log', default='INFO', help='Set logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)', type=str)
+
     subparsers = parser.add_subparsers(dest="command")
     
-    # "book" 命令
+    # "book" Command
     book_parser = subparsers.add_parser('book', help='Reserve a seat')
     book_parser.add_argument('cardno', help='User card number')
     book_parser.add_argument('seat_id', help='Seat ID to book')
     
-    # "seat" 命令
+    # "seat" Command
     seat_parser = subparsers.add_parser('seat', help='Check seat status')
     seat_parser.add_argument('seat_id', help='Seat ID to check')
     
-    # "user" 命令
+    # "user" Command
     user_parser = subparsers.add_parser('user', help='Check user status')
     user_parser.add_argument('cardno', help='User card number')
     
-    # "space" 命令
+    # "space" Command
     space_parser = subparsers.add_parser('space', help='Find available seats in a space')
     space_parser.add_argument('space', help='Space identifier')
 
-    # "list" 命令
+    # "list" Command
     list_parser = subparsers.add_parser('list', help='List spaces in an area')
     list_parser.add_argument('area', help='Area identifier')
 
-    # "listall" 命令
+    # "listall" Command
     subparsers.add_parser('listall', help='List all spaces')
     
-    # "refresh" 命令
+    # "refresh" Command
     subparsers.add_parser('refresh', help='Refresh cache')
     
-    # "help" 命令自动包含在默认帮助中
+    # "help" Command already handled by argparse
 
-    # 解析命令行参数
+    # Parse arguments
+
     args = parser.parse_args()
+
+    # Set logging level
+    log_level = getattr(logging, args.log.upper(), logging.INFO)
+    if not isinstance(log_level, int):
+        parser.error(f"Invalid log level: {args.log}")
+        sys.exit(1)
+    logging.getLogger().setLevel(log_level)
     
     if args.command == 'book':
         reserve_seat(args.cardno, args.seat_id)
