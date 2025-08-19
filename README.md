@@ -1,8 +1,6 @@
-# Library.xjtu - automatically book seats for you
+# Library.xjtu
 
 ## Introduction
+- automatically book seats for you
+- automatically reverse space for you
 
-## TODO
-* [ ] Code refactoring
-* [ ] Use [`auth-xjtu`](https://pypi.org/project/auth-xjtu/) at `8086` port for fetching seat info
-* [ ] IP spoofing for booking 
