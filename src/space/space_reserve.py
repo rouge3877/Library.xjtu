@@ -211,14 +211,20 @@ if __name__ == "__main__":
     })
 
     # Example usage
+    date = input("Enter the date (YYYYMMDD): ")
+    startTime = input("Enter the start time (HHMM): ")
+    endTime = input("Enter the end time (HHMM): ")
+    userId = input("Enter your user ID: ")
+    password = input("Enter your password: ")
+
     ret = space_reserve(
         my_session=session,
         spacename="东南一研修间",
-        date="20250819",
-        startTime="1750",
-        endTime="1850",
-        userId="2204112913",
-        password="020710"
+        date=date,
+        startTime=startTime,
+        endTime=endTime,
+        userId=userId,
+        password=password
     )
 
     if ret == 0:
