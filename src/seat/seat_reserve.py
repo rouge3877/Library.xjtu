@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import os
 import json
 import logging
 from datetime import datetime
@@ -36,10 +37,17 @@ def fetch_api(endpoint: str, params: Dict) -> Optional[Dict]:
 
 class LibraryDataManager:
 
-    def __init__(self, base_url: str, areas: List[str], cache_live_days: int = 15, cache_file_path: str = 'cache.json'):
+    def __init__(self, base_url: str, areas: List[str], cache_live_days: int = 15, cache_file_path: str = None):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.base_url = base_url
         self.areas = areas
+        
+        # Set default cache file path if not provided
+        if cache_file_path is None:
+            cache_dir = os.path.expanduser('~/.cache/Library-xjtu')
+            os.makedirs(cache_dir, exist_ok=True)
+            cache_file_path = os.path.join(cache_dir, 'cache.json')
+        
         self.cache_file = cache_file_path
         self.cache_live_days = cache_live_days
 
