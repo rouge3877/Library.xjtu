@@ -64,6 +64,62 @@ def find_room_by_title(title: str, rooms_data: list):
     return None
 
 
+def check_available(title: str, rooms_data: list, start_time: str, end_time: str) -> bool:
+    """
+    Check if a room is available for reservation
+    Args:
+        title: Room title to check (e.g., "东南一研修间")
+        rooms_data: List of room data from the API response
+        start_time: Reservation start time
+        end_time: Reservation end time
+    Returns:
+        bool: True if the room is available, False otherwise
+    """
+    room = find_room_by_title(title, rooms_data)
+    if not room:
+        return False
+
+    # Check the room's availability
+    for reservation in room.get("ts", []):
+        """
+        ts": [
+                {
+                    "id": null,
+                    "start": "2025-08-31 18:30",
+                    "end": "2025-08-31 20:30",
+                    "state": "undo",
+                    "date": null,
+                    "name": null,
+                    "title": "张益嘉,小组讨论",
+                    "owner": "张益嘉",
+                    "accno": "101788453",
+                    "member": "",
+                    "limit": null,
+                    "occupy": false
+                }
+            ],
+        """
+        this_start_time = reservation.get("start", "")
+        this_end_time = reservation.get("end", "")
+        
+        # Extract time part safely and convert to HHMM format for comparison
+        if len(this_start_time) >= 16:  # "2025-08-31 18:30" format
+            this_start_time = this_start_time[11:16].replace(":", "")  # "18:30" -> "1830"
+        else:
+            continue  # Skip invalid time format
+            
+        if len(this_end_time) >= 16:  # "2025-08-31 20:30" format
+            this_end_time = this_end_time[11:16].replace(":", "")    # "20:30" -> "2030"
+        else:
+            continue  # Skip invalid time format
+        
+        # Check for time overlap: if our time overlaps with existing reservation, room is not available
+        # Two time periods overlap if: start1 < end2 AND start2 < end1
+        if start_time < this_end_time and this_start_time < end_time:
+            return False
+
+    return True
+
 def space_reserve(
     my_session: requests.Session,
     userId: str,
@@ -139,6 +195,11 @@ def space_reserve(
     target_room = find_room_by_title(spacename, rooms_data)
     if not target_room:
         print("未找到指定房间")
+        return 1
+
+    avaliable_flag = check_available(spacename, rooms_data, startTime, endTime)
+    if not avaliable_flag:
+        print("房间在指定时间内不可用")
         return 1
 
     # step 5
