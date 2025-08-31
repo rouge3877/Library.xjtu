@@ -216,10 +216,23 @@ if __name__ == "__main__":
     endTime = input("Enter the end time (HHMM): ")
     userId = input("Enter your user ID: ")
     password = input("Enter your password: ")
+    space = input("Enter the space name: ")
+
+    # space = (1 .. 4) --> spacename
+    # 1 -- > "东南一研修间"
+    # 2 -- > "东南二研修间"
+    # 3 -- > "西南一研修间"
+    # 4 -- > "西南二研修间"
+    space_name_map = {
+        "1": "东南一研修间",
+        "2": "东南二研修间",
+        "3": "西南一研修间",
+        "4": "西南二研修间"
+    }
 
     ret = space_reserve(
         my_session=session,
-        spacename="东南一研修间",
+        spacename=space_name_map[space],
         date=date,
         startTime=startTime,
         endTime=endTime,
