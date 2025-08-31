@@ -36,11 +36,12 @@ def fetch_api(endpoint: str, params: Dict) -> Optional[Dict]:
 
 class LibraryDataManager:
 
-    def __init__(self, base_url: str, areas: List[str], cache_file_path: str = 'cache.json'):
+    def __init__(self, base_url: str, areas: List[str], cache_live_days: int = 15, cache_file_path: str = 'cache.json'):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.base_url = base_url
         self.areas = areas
         self.cache_file = cache_file_path
+        self.cache_live_days = cache_live_days
 
         self.area_space_map: Dict[str, List[str]] = {}
         self.space_seat_map: Dict[str, List[str]] = {}
@@ -51,11 +52,17 @@ class LibraryDataManager:
         try:
             with open(self.cache_file, 'r') as f:
                 data = json.load(f)
-                if data.get('date') == datetime.now().date().isoformat():
+                cache_date = datetime.fromisoformat(data.get('date')).date()
+                current_date = datetime.now().date()
+                days_diff = (current_date - cache_date).days
+
+                if days_diff < self.cache_live_days:
                     self.area_space_map = data['area_space']
                     self.space_seat_map = data['space_seat']
-                    self.logger.info("Loaded valid cache data for today")
+                    self.logger.info(f"Loaded valid cache data (age: {days_diff} days)")
                     return
+                else:
+                    self.logger.info(f"Cache is {days_diff} days old, refreshing...")
         except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
             self.logger.warning(f"Cache load failed: {str(e)}")
         except Exception as e:
