@@ -30,7 +30,7 @@ Repo由两部分构成，分别是 Pin 住图书馆的座位以及预约图书�
 
 当然，如果你觉得看code，用python太麻烦也没关系。这里提供一种极为简易且优雅的交互方式：
 
-<script src="https://gist.github.com/rouge3877/6a75b4e8e2e707400ce4b952cd48f9ff.js"></script>
+[Github GIST: rouge3877/LibInsertion.js]([rouge3877/LibInsertion.js](https://gist.github.com/rouge3877/6a75b4e8e2e707400ce4b952cd48f9ff))
 
 1. 安装 **Tampermonkey** (油猴)、**Greasemonkey** 或其他类似的浏览器插件。
 2. 将上面的脚本添加进去。
